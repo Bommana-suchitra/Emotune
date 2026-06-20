@@ -1,0 +1,159 @@
+{% extends "socialaccount/base_entrance.html" %}
+{% load i18n %}
+{% load allauth %}
+
+{% block head_title %}
+{% trans "Redirecting to Google..." %}
+{% endblock head_title %}
+
+{% block extra_head %}
+<style>
+  .social-card {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 40px 30px;
+    text-align: center;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+    animation: fadeUp 0.6s ease;
+  }
+
+  .logo {
+    font-weight: bold;
+    font-size: 22px;
+    color: #2563eb;
+    margin-bottom: 20px;
+    letter-spacing: 0.08em;
+  }
+
+  /* GOOGLE ICON */
+  .google-icon {
+    width: 50px;
+    height: 50px;
+    margin: 10px auto;
+    animation: pulse 1.5s infinite;
+  }
+
+  /* PROGRESS BAR */
+  .progress-container {
+    width: 100%;
+    height: 6px;
+    background: #e5e7eb;
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 20px 0;
+  }
+
+  .progress-bar {
+    height: 100%;
+    width: 0%;
+    background: #2563eb;
+    border-radius: 10px;
+    animation: loadProgress 2s ease forwards;
+  }
+
+  h2 {
+    font-size: 20px;
+    margin-bottom: 10px;
+    color: #111827;
+  }
+
+  p {
+    color: #6b7280;
+    font-size: 14px;
+    margin-bottom: 10px;
+  }
+
+  .note {
+    font-size: 12px;
+    color: #9ca3af;
+    margin-bottom: 20px;
+  }
+
+  /* BACK BUTTON */
+  .back-link {
+    display: inline-block;
+    margin-top: 10px;
+    font-size: 13px;
+    color: #2563eb;
+    text-decoration: none;
+    font-weight: 500;
+  }
+
+  .back-link:hover {
+    text-decoration: underline;
+  }
+
+  /* ANIMATIONS */
+  @keyframes fadeUp {
+    from {
+      opacity: 0;
+      transform: translateY(30px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes loadProgress {
+    0% { width: 0%; }
+    100% { width: 100%; }
+  }
+
+  @keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+    100% { transform: scale(1); }
+  }
+</style>
+{% endblock extra_head %}
+
+{% block content %}
+<div class="social-card">
+
+  <div class="logo">VisioSound</div>
+
+  <!-- GOOGLE SVG ICON -->
+  <svg class="google-icon" viewBox="0 0 48 48">
+    <path fill="#EA4335" d="M24 9.5c3.15 0 5.95 1.1 8.15 2.9l6.1-6.1C34.1 2.4 29.4 0 24 0 14.6 0 6.6 5.8 2.8 14.2l7.1 5.5C11.8 13.1 17.4 9.5 24 9.5z"/>
+    <path fill="#34A853" d="M46.5 24.5c0-1.6-.15-3.1-.4-4.5H24v9h12.7c-.55 2.9-2.2 5.3-4.7 6.9l7.3 5.7c4.3-4 6.8-9.9 6.8-17.1z"/>
+    <path fill="#FBBC05" d="M9.9 28.7c-.5-1.5-.8-3.1-.8-4.7s.3-3.2.8-4.7l-7.1-5.5C1 17.3 0 20.6 0 24s1 6.7 2.8 9.7l7.1-5z"/>
+    <path fill="#4285F4" d="M24 48c6.5 0 12-2.2 16-6l-7.3-5.7c-2 1.4-4.6 2.2-8.7 2.2-6.6 0-12.2-4.6-14.2-10.8l-7.1 5C6.6 42.2 14.6 48 24 48z"/>
+  </svg>
+
+  <h2>{% trans "Connecting to Google…" %}</h2>
+
+  <p>
+    {% trans "Securely redirecting you to continue sign in." %}
+  </p>
+
+  <div class="note">
+    This usually takes a few seconds
+  </div>
+
+  <!-- PROGRESS BAR -->
+  <div class="progress-container">
+    <div class="progress-bar"></div>
+  </div>
+
+  <!-- BACK OPTION -->
+  <a href="{% url 'auth' %}" class="back-link">
+    ← Back to login
+  </a>
+
+  <form method="post" id="social-form" style="display:none;">
+    {% csrf_token %}
+  </form>
+
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // smoother delay for UX
+    setTimeout(() => {
+      document.getElementById('social-form').submit();
+    }, 1800);
+  });
+</script>
+{% endblock content %}

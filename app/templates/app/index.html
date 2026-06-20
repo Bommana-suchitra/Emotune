@@ -1,0 +1,1106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>VisoSound — Face Expression → Music</title>
+{% load static %}
+<style>
+  :root {
+    --bg: #ffffff;
+    --surface: #f8f9fa;
+    --card: #ffffff;
+    --border: #dee2e6;
+    --green: #007bff;
+    --purple: #0056b3;
+    --text: #212529;
+    --muted: #6c757d;
+    --radius: 16px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 32px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+  }
+  .logo-img {
+    height: 42px;
+    width: auto;
+    display: block;
+  }
+  .logout-logo {
+    height: 18px;
+    width: auto;
+    margin-right: 6px;
+    vertical-align: middle;
+    filter: brightness(0) invert(1);
+    transition: transform 0.2s ease;
+  }
+
+  /* ── Layout ── */
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 32px 20px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px;
+  }
+  @media (max-width: 768px) {
+    .container { grid-template-columns: 1fr; }
+  }
+
+  /* ── Card ── */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+  }
+  .card-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 16px;
+    font-weight: 600;
+  }
+
+  /* ── Camera ── */
+  .camera-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 4/3;
+    background: var(--surface);
+    border-radius: 12px;
+    overflow: hidden;
+    border: 2px solid var(--border);
+  }
+  #videoEl {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1);
+    display: block;
+  }
+  #canvasEl { display: none; }
+
+  .cam-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  .corner {
+    position: absolute;
+    width: 24px;
+    height: 24px;
+    border-color: var(--green);
+    border-style: solid;
+    opacity: 0.7;
+  }
+  .corner.tl { top: 12px; left: 12px; border-width: 2px 0 0 2px; border-radius: 4px 0 0 0; }
+  .corner.tr { top: 12px; right: 12px; border-width: 2px 2px 0 0; border-radius: 0 4px 0 0; }
+  .corner.bl { bottom: 12px; left: 12px; border-width: 0 0 2px 2px; border-radius: 0 0 0 4px; }
+  .corner.br { bottom: 12px; right: 12px; border-width: 0 2px 2px 0; border-radius: 0 0 4px 0; }
+
+  .cam-status {
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--green);
+    background: rgba(0,0,0,0.6);
+    padding: 4px 12px;
+    border-radius: 100px;
+  }
+
+  /* ── Emotion display ── */
+  #emotionDisplay {
+    margin-top: 16px;
+    padding: 16px;
+    background: var(--surface);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    min-height: 72px;
+    transition: border-color 0.3s;
+  }
+  .emo-emoji { font-size: 40px; line-height: 1; }
+  .emo-info { flex: 1; }
+  .emo-label { font-size: 20px; font-weight: 700; }
+  .emo-conf  { font-size: 12px; color: var(--muted); margin-top: 3px; letter-spacing: 1px; }
+
+  /* ── Confidence bars ── */
+  .bars-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 16px;
+  }
+  .bar-row { display: flex; align-items: center; gap: 8px; }
+  .bar-label { font-size: 11px; color: var(--muted); width: 58px; flex-shrink: 0; }
+  .bar-track {
+    flex: 1;
+    height: 6px;
+    background: var(--surface);
+    border-radius: 100px;
+    overflow: hidden;
+  }
+  .bar-fill {
+    height: 100%;
+    border-radius: 100px;
+    transition: width 0.4s ease;
+    background: var(--green);
+  }
+  .bar-pct { font-size: 10px; color: var(--muted); width: 28px; text-align: right; }
+
+  /* ── Controls ── */
+  .controls {
+    display: flex;
+    gap: 10px;
+    margin-top: 18px;
+    flex-wrap: wrap;
+  }
+
+  select {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 16px;
+    border-radius: 10px;
+    font-size: 14px;
+    cursor: pointer;
+    outline: none;
+    flex: 1;
+  }
+  select:focus { border-color: var(--green); }
+
+  .btn {
+    padding: 10px 20px;
+    border-radius: 10px;
+    border: none;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.5px;
+  }
+  .btn-green { background: var(--green); color: #fff; }
+  .btn-green:hover { background: var(--purple); transform: translateY(-1px); }
+  .btn-outline {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+  .btn-outline:hover { border-color: var(--green); color: var(--green); }
+  .btn-outline:hover .logout-logo { transform: translateX(2px); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  .logout-logo {
+    height: 16px;
+    width: 16px;
+    margin: 0;
+    vertical-align: middle;
+    filter: brightness(0) invert(1);
+    transition: transform 0.2s ease;
+  }
+
+  .spotify-icon {
+    width: 50px;
+    height: 50px;
+    margin-right: 10px;
+    flex-shrink: 0;
+  }
+
+  .btn-scan {
+    background: linear-gradient(135deg, var(--green), var(--purple));
+    color: #fff;
+    width: 100%;
+    padding: 14px;
+    font-size: 15px;
+    border-radius: 12px;
+    margin-top: 14px;
+    position: relative;
+    overflow: hidden;
+  }
+  .btn-scan::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(255,255,255,0.1);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .btn-scan:hover::after { opacity: 1; }
+
+  /* ── Songs panel ── */
+  #songsPanel { overflow: hidden; }
+
+  .song-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px;
+    background: #0f0f1e;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    margin-bottom: 10px;
+    transition: border-color 0.2s, transform 0.2s;
+  }
+  .song-card:hover { border-color: var(--green); transform: translateX(4px); }
+  .song-cover {
+    width: 52px;
+    height: 52px;
+    border-radius: 8px;
+    object-fit: cover;
+    flex-shrink: 0;
+    background: var(--surface);
+  }
+  .song-cover-placeholder {
+    width: 52px;
+    height: 52px;
+    border-radius: 8px;
+    background: var(--surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+  }
+  .song-info { flex: 1; overflow: hidden; }
+  .song-title {
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .song-artist { font-size: 12px; color: var(--muted); margin-top: 3px; }
+  .play-btn {
+    background: var(--green);
+    color: #fff;
+    padding: 8px 16px;
+    border-radius: 100px;
+    font-size: 12px;
+    font-weight: 700;
+    text-decoration: none;
+    flex-shrink: 0;
+    transition: background 0.2s;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    border: none;
+  }
+  .play-btn:hover { background: var(--purple); }
+
+  .player-wrapper {
+    width: 100%;
+    aspect-ratio: 16 / 4;
+    background: var(--surface);
+    border-radius: 16px;
+    overflow: hidden;
+    margin-top: 16px;
+    border: 1px solid var(--border);
+  }
+  #spotifyEmbed {
+    width: 100%;
+    height: 100%;
+    border: 0;
+  }
+  .player-info {
+    margin-top: 10px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  /* ── Status / loading ── */
+  .status-bar {
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 8px 0;
+  }
+  .status-bar.active { color: var(--green); }
+
+  .loader {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--border);
+    border-top-color: var(--green);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: middle;
+    margin-right: 8px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .pulse { animation: pulse 1.5s ease-in-out infinite; }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.4; }
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--muted);
+  }
+  .empty-state .big { font-size: 48px; margin-bottom: 12px; }
+
+  /* ── Scan progress ── */
+  .progress-wrap {
+    margin-top: 12px;
+    display: none;
+  }
+  .progress-track {
+    height: 4px;
+    background: var(--border);
+    border-radius: 100px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--green), var(--purple));
+    border-radius: 100px;
+    transition: width 0.3s linear;
+    width: 0%;
+  }
+  .progress-label {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 2px;
+    margin-top: 6px;
+  }
+
+  /* ── Viso info bar ── */
+  .info-band {
+    text-align: center;
+    padding: 14px;
+    background: linear-gradient(90deg, rgba(0,123,255,0.08), rgba(0,86,179,0.08));
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 1px;
+  }
+  .info-band b { color: var(--text); }
+
+/* ===== FINAL PERFECT FOOTER ===== */
+
+.footer {
+  margin-top: 60px;
+  padding: 60px 0;
+  background: #1a1f36;
+}
+
+/* SAME WIDTH AS PAGE */
+.container {
+  max-width: 1100px;
+  margin: auto;
+  padding: 0 20px;
+}
+
+/* MAIN LAYOUT */
+.footer-grid {
+  display: flex;
+  align-items: flex-start;
+}
+
+/* LEFT SIDE */
+.footer-left {
+  width: 280px;   /* 🔥 fixed width */
+}
+
+.footer .logo {
+  font-size: 22px;
+  font-weight: bold;
+  color: #fff;
+  margin-bottom: 10px;
+}
+
+.tagline {
+  color: rgba(255,255,255,0.7);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* RIGHT SIDE (IMPORTANT FIX) */
+.footer-links {
+  margin-right: auto;            /* 🔥 push everything right */
+  display: flex;
+  gap: 80px;                   /* 🔥 equal spacing */
+  align-items: flex-start;
+}
+
+/* EACH COLUMN */
+.footer-links > div {
+  min-width: 150px;
+}
+
+/* HEADINGS */
+.footer-links h4 {
+  margin-bottom: 12px;
+  font-size: 14px;
+  color: rgba(255,255,255,0.5);
+}
+
+/* LIST */
+.footer-links ul {
+  list-style: none;
+}
+
+.footer-links li {
+  margin-bottom: 10px;
+  font-size: 14px;
+  color: rgba(255,255,255,0.75);
+  transition: 0.2s;
+}
+
+.footer-links li:hover {
+  color: #2563eb;
+  transform: translateX(3px);
+}
+
+
+.footer-bottom {
+  text-align:center;
+  margin-top:40px;
+  color:rgba(255,255,255,0.5); /* ✅ updated */
+  font-size:14px;
+}
+
+/* MOBILE */
+@media (max-width: 768px) {
+  .footer-grid {
+    flex-direction: column;
+    gap: 30px;
+  }
+
+  .footer-links {
+    margin-bottom: 0;
+    flex-direction: column;
+    gap: 20px;
+  }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <img src="{% static 'images/logo.png' %}" alt="VisioSound" class="logo-img" />
+  </div>
+  <div style="display:flex; align-items:center; gap:18px;">
+    <div style="font-size:12px;color:var(--muted);letter-spacing:2px;">FACE EXPRESSION → MUSIC</div>
+    <a href="{% url 'logout' %}" class="btn btn-outline" style="font-size:15px; " >
+     
+      <span>Logout</span>
+    </a>
+  </div>
+</header>
+
+<div class="info-band">
+  Point your face at the camera · Choose language · Hit <b>SCAN &amp; PLAY</b>
+</div>
+
+<div class="container">
+
+  <!-- LEFT: Camera + Controls -->
+  <div>
+    <div class="card">
+      <div class="card-title">📷 Live Camera</div>
+      <div class="camera-wrap">
+        <video id="videoEl" autoplay playsinline muted></video>
+        <canvas id="canvasEl"></canvas>
+        <div class="cam-overlay">
+          <div class="corner tl"></div>
+          <div class="corner tr"></div>
+          <div class="corner bl"></div>
+          <div class="corner br"></div>
+          <div class="cam-status" id="camStatus">INITIALIZING...</div>
+        </div>
+      </div>
+
+      <!-- Emotion display -->
+      <div id="emotionDisplay">
+        <div class="emo-emoji" id="emoEmoji">😐</div>
+        <div class="emo-info">
+          <div class="emo-label" id="emoLabel" style="color:var(--muted)">Waiting...</div>
+          <div class="emo-conf" id="emoConf">Point face at camera</div>
+        </div>
+      </div>
+
+      <!-- Confidence bars -->
+      <div class="bars-grid" id="barsGrid">
+        {% for key, val in emotions.items %}
+        <div class="bar-row">
+          <div class="bar-label">{{ val.emoji }} {{ val.label|slice:":4" }}</div>
+          <div class="bar-track">
+            <div class="bar-fill" id="bar_{{ key }}" style="width:0%;background:{{ val.color }}"></div>
+          </div>
+          <div class="bar-pct" id="pct_{{ key }}">0%</div>
+        </div>
+        {% endfor %}
+      </div>
+
+      <!-- Controls -->
+      <div class="controls">
+        <select id="langSelect">
+          {% for lang in languages %}
+          <option value="{{ lang }}" {% if lang == "Telugu" %}selected{% endif %}>{{ lang }}</option>
+          {% endfor %}
+        </select>
+        <button class="btn btn-outline" id="toggleCamBtn" onclick="toggleCamera()">⏸ Pause</button>
+      </div>
+
+      <button class="btn btn-scan" id="scanBtn" onclick="scanAndPlay()">
+        🎯 SCAN &amp; PLAY SONGS
+      </button>
+
+      <div class="progress-wrap" id="progressWrap">
+        <div class="progress-track">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <div class="progress-label" id="progressLabel">ANALYZING EXPRESSION...</div>
+      </div>
+
+      <div class="status-bar" id="statusBar">Camera ready · Detection live</div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Songs -->
+  <div>
+    <div class="card" id="songsPanel" style="min-height:400px;">
+      <div class="card-title" id="songsPanelTitle">
+        <svg class="spotify-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <circle cx="12" cy="12" r="10" fill="#1DB954" />
+          <path d="M7.5 10.8c2.3-1.4 5.6-1.0 7.4-0.5" stroke="#fff" stroke-width="1.4" fill="none" stroke-linecap="round" />
+          <path d="M7.5 13.8c2.7-1.6 6.6-1.1 8.8-0.5" stroke="#fff" stroke-width="1.4" fill="none" stroke-linecap="round" />
+          <path d="M7.5 17.0c3.2-1.8 7.7-1.2 10.5-0.6" stroke="#fff" stroke-width="1.4" fill="none" stroke-linecap="round" />
+        </svg>
+        Spotify Recommended Songs
+      </div>
+
+      <!-- Song search -->
+      <div style="margin-bottom:16px;">
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="text" id="songSearchInput" placeholder="Search for any song..." style="flex:1;padding:10px 16px;border:1px solid var(--border);border-radius:10px;background:rgba(255,255,255,0.04);color:var(--text);font-size:14px;" />
+          <button class="btn btn-green" onclick="searchSongsByName()" style="padding:10px 16px;font-size:14px;">🔍 Search</button>
+        </div>
+      </div>
+
+      <!-- Language selector for re-searching -->
+      <div id="languageSelector" style="display:none;margin-bottom:16px;">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+          <span style="font-size:12px;color:var(--muted);">Change Language:</span>
+          <select id="rescanLangSelect" style="flex:1;">
+            {% for lang in languages %}
+            <option value="{{ lang }}">{{ lang }}</option>
+            {% endfor %}
+          </select>
+          <button class="btn btn-green" onclick="rescanWithNewLanguage()" style="padding:6px 12px;font-size:12px;">🔄 Re-search</button>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-outline" onclick="rescanWithMode('language_only', event)" style="padding:6px 12px;font-size:12px;">🌍 Language Only</button>
+          <button class="btn btn-outline" onclick="rescanWithMode('popular', event)" style="padding:6px 12px;font-size:12px;">⭐ Popular Songs</button>
+        </div>
+      </div>
+      <div id="songsBody">
+        <div class="empty-state">
+          <div class="big">🎧</div>
+          <div>Your emotion-matched songs<br>will appear here</div>
+          <div style="margin-top:12px;font-size:12px;">Scan your face to get started</div>
+        </div>
+      </div>
+      <div id="playerPanel" style="display:none;">
+        <div class="card-title">▶ Now playing</div>
+        <div class="player-wrapper">
+          <iframe id="spotifyEmbed" src="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" allowtransparency="true" loading="lazy"></iframe>
+        </div>
+        <div class="player-info" id="playerInfo">Select a song to play it without leaving this page.</div>
+      </div>    </div>
+  </div>
+
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────────
+let stream = null;
+let detectionInterval = null;
+let isDetecting = false;
+let latestEmotion = null;
+let scanning = false;
+let cameraActive = false;
+
+const video    = document.getElementById('videoEl');
+const canvas   = document.getElementById('canvasEl');
+const ctx      = canvas.getContext('2d');
+
+// ── Start Camera ──────────────────────────────────────────────────────────────
+async function startCamera() {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 640, height: 480 } });
+    video.srcObject = stream;
+    await video.play();
+    cameraActive = true;
+    document.getElementById('camStatus').textContent = '● LIVE';
+    setStatus('Camera active · Auto-detecting expression...');
+    startAutoDetection();
+  } catch (e) {
+    document.getElementById('camStatus').textContent = '✕ NO CAMERA';
+    setStatus('Camera error: ' + e.message);
+    console.error(e);
+  }
+}
+
+function toggleCamera() {
+  const btn = document.getElementById('toggleCamBtn');
+  if (cameraActive) {
+    stopAutoDetection();
+    video.pause();
+    cameraActive = false;
+    btn.textContent = '▶ Resume';
+    document.getElementById('camStatus').textContent = '⏸ PAUSED';
+  } else {
+    video.play();
+    cameraActive = true;
+    btn.textContent = '⏸ Pause';
+    document.getElementById('camStatus').textContent = '● LIVE';
+    detectOnce(); // Detect once after resuming, don't start continuous detection
+  }
+}
+
+// ── Capture Frame ─────────────────────────────────────────────────────────────
+function captureFrame() {
+  if (!video.videoWidth) return null;
+  canvas.width  = video.videoWidth;
+  canvas.height = video.videoHeight;
+  ctx.drawImage(video, 0, 0);
+  return canvas.toDataURL('image/jpeg', 0.8);
+}
+
+// ── Auto Detection (every 2s) ─────────────────────────────────────────────────
+function startAutoDetection() {
+  if (detectionInterval) clearInterval(detectionInterval);
+  detectionInterval = setInterval(async () => {
+    if (!cameraActive || isDetecting || scanning) return;
+    const frame = captureFrame();
+    if (!frame) return;
+    isDetecting = true;
+    try {
+      const resp = await fetch('/detect/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: frame }),
+      });
+      const data = await resp.json();
+      if (!data.error) {
+        updateEmotionUI(data);
+        latestEmotion = data;
+      }
+    } catch(e) { /* silent */ }
+    isDetecting = false;
+  }, 2000);
+}
+
+function stopAutoDetection() {
+  if (detectionInterval) { clearInterval(detectionInterval); detectionInterval = null; }
+}
+
+// ── Single Detection ──────────────────────────────────────────────────────────
+async function detectOnce() {
+  if (isDetecting || scanning) return;
+  const frame = captureFrame();
+  if (!frame) return;
+  isDetecting = true;
+  try {
+    const resp = await fetch('/detect/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: frame }),
+    });
+    const data = await resp.json();
+    if (!data.error) {
+      updateEmotionUI(data);
+      latestEmotion = data;
+    }
+  } catch(e) { /* silent */ }
+  isDetecting = false;
+}
+
+// ── Update Emotion UI ─────────────────────────────────────────────────────────
+function updateEmotionUI(data) {
+  document.getElementById('emoEmoji').textContent = data.emoji;
+  document.getElementById('emoLabel').textContent = data.label;
+  document.getElementById('emoLabel').style.color = data.color;
+  document.getElementById('emoConf').textContent = `Confidence: ${data.confidence}%`;
+  document.getElementById('emotionDisplay').style.borderColor = data.color + '55';
+
+  const scores = data.scores;
+  for (const [emo, pct] of Object.entries(scores)) {
+    const bar = document.getElementById('bar_' + emo);
+    const pctEl = document.getElementById('pct_' + emo);
+    if (bar) bar.style.width = pct + '%';
+    if (pctEl) pctEl.textContent = Math.round(pct) + '%';
+  }
+}
+
+// ── Scan & Play ───────────────────────────────────────────────────────────────
+async function scanAndPlay() {
+  if (scanning) return;
+  scanning = true;
+
+  const btn = document.getElementById('scanBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Scanning...';
+
+  const pw = document.getElementById('progressWrap');
+  const pf = document.getElementById('progressFill');
+  const pl = document.getElementById('progressLabel');
+  pw.style.display = 'block';
+
+  // Collect emotion readings for 4 seconds
+  const readings = [];
+  const totalMs  = 4000;
+  const stepMs   = 500;
+  let elapsed    = 0;
+
+  const scanTimer = setInterval(async () => {
+    const frame = captureFrame();
+    if (frame) {
+      try {
+        const resp = await fetch('/detect/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: frame }),
+        });
+        const data = await resp.json();
+        if (!data.error) {
+          readings.push(data);
+        }
+      } catch(e) {}
+    }
+    elapsed += stepMs;
+    pf.style.width = (elapsed / totalMs * 100) + '%';
+    pl.textContent = `ANALYZING: ${Math.ceil((totalMs - elapsed) / 1000)}s remaining...`;
+  }, stepMs);
+
+  await new Promise(r => setTimeout(r, totalMs));
+  clearInterval(scanTimer);
+
+  // Vote for dominant emotion
+  let finalEmotion = 'neutral';
+  if (readings.length) {
+    const counts = {};
+    readings.forEach(r => counts[r.emotion] = (counts[r.emotion] || 0) + 1);
+    finalEmotion = Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
+    updateEmotionUI(readings[readings.length - 1]);
+  }
+
+  pl.textContent = `DETECTED: ${finalEmotion.toUpperCase()} · Fetching songs...`;
+
+  // Search songs
+  const language = document.getElementById('langSelect').value;
+  try {
+    const resp = await fetch('/search_songs/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ emotion: finalEmotion, language }),
+    });
+    const data = await resp.json();
+    renderSongs(data.tracks || [], finalEmotion, language, data.query, 'emotion');
+    if (data.tracks && data.tracks.length > 0) {
+      playSong(data.tracks[0].url, data.tracks[0].title);
+    }
+  } catch(e) {
+    renderSongs([], finalEmotion, language, '', 'emotion');
+  }
+
+  // Reset controls
+  scanning = false;
+  btn.disabled = false;
+  btn.textContent = '🎯 SCAN & PLAY SONGS';
+  pf.style.width = '100%';
+  pl.textContent = '✓ DONE';
+  setTimeout(() => { pw.style.display = 'none'; pf.style.width = '0%'; }, 2000);
+  setStatus(`Last scan: ${finalEmotion} · ${language}`);
+}
+
+// ── Render Songs ──────────────────────────────────────────────────────────────
+function renderSongs(tracks, emotion, language, query, mode = 'emotion') {
+  const body  = document.getElementById('songsBody');
+  const title = document.getElementById('songsPanelTitle');
+  const langSelector = document.getElementById('languageSelector');
+  const rescanSelect = document.getElementById('rescanLangSelect');
+
+  // Store current emotion for re-searching
+  window.currentEmotion = emotion;
+
+  const emojiMap = {
+    happy: '😄', sad: '😢', angry: '😠', fear: '😨',
+    surprise: '😲', disgust: '🤢', neutral: '😐'
+  };
+
+  // Adjust title based on mode
+  if (mode === 'language_only') {
+    title.textContent = `🌍 ${language} Popular Songs`;
+  } else if (mode === 'popular') {
+    title.textContent = `⭐ Popular ${language} Songs`;
+  } else if (mode === 'search') {
+    title.textContent = `🔍 Search Results for "${query}"`;
+  } else {
+    title.textContent = `${emojiMap[emotion] || '🎵'} ${emotion.toUpperCase()} · ${language}`;
+  }
+
+  if (!tracks || tracks.length === 0) {
+    body.innerHTML = `
+      <div class="empty-state">
+        <div class="big">🔇</div>
+        <div>No songs found</div>
+        <div style="margin-top:8px;font-size:12px;color:var(--muted)">
+          Check your RapidAPI key in settings.py
+        </div>
+      </div>`;
+    langSelector.style.display = 'none';
+    return;
+  }
+
+  // Show language selector
+  langSelector.style.display = 'block';
+  rescanSelect.value = language;
+
+  body.innerHTML = tracks.map(t => `
+    <div class="song-card">
+      ${t.cover
+        ? `<img class="song-cover" src="${t.cover}" alt="cover" />`
+        : `<div class="song-cover-placeholder">🎵</div>`
+      }
+      <div class="song-info">
+        <div class="song-title">${escHtml(t.title)}</div>
+        <div class="song-artist">${escHtml(t.artist)}</div>
+      </div>
+      <button class="play-btn" type="button" data-url="${escHtml(t.url)}" data-title="${escHtml(t.title)}" onclick="playSong(this.dataset.url, this.dataset.title)">▶ PLAY</button>
+    </div>
+  `).join('');
+}
+
+function getSpotifyEmbedUrl(trackUrl) {
+  const match = trackUrl.match(/track\/([A-Za-z0-9]+)/) || trackUrl.match(/spotify:track:([A-Za-z0-9]+)/);
+  return match ? `https://open.spotify.com/embed/track/${match[1]}` : '';
+}
+
+function playSong(trackUrl, title) {
+  const embedUrl = getSpotifyEmbedUrl(trackUrl);
+  if (!embedUrl) {
+    window.open(trackUrl, '_blank');
+    return;
+  }
+
+  document.getElementById('spotifyEmbed').src = embedUrl;
+  document.getElementById('playerInfo').textContent = `Now playing: ${title}`;
+  document.getElementById('playerPanel').style.display = 'block';
+  setStatus(`Playing: ${title}`);
+}
+
+// ── Re-scan with new language ─────────────────────────────────────────────────
+async function rescanWithNewLanguage() {
+  if (!window.currentEmotion) return;
+
+  const newLanguage = document.getElementById('rescanLangSelect').value;
+  const rescanBtn = document.querySelector('#languageSelector .btn');
+
+  rescanBtn.disabled = true;
+  rescanBtn.textContent = '⏳ Searching...';
+
+  try {
+    const resp = await fetch('/search_songs/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ emotion: window.currentEmotion, language: newLanguage }),
+    });
+    const data = await resp.json();
+    renderSongs(data.tracks || [], window.currentEmotion, newLanguage, data.query, 'emotion');
+  } catch(e) {
+    console.error('Re-scan failed:', e);
+  }
+
+  rescanBtn.disabled = false;
+  rescanBtn.textContent = '🔄 Re-search';
+}
+
+async function rescanWithMode(mode, event) {
+  if (!window.currentEmotion) return;
+
+  const language = document.getElementById('rescanLangSelect').value;
+  const buttons = document.querySelectorAll('#languageSelector .btn-outline');
+  buttons.forEach(btn => btn.disabled = true);
+
+  const clickedBtn = event?.target;
+  if (clickedBtn) clickedBtn.textContent = '⏳ Searching...';
+
+  try {
+    const resp = await fetch('/search_songs/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ emotion: window.currentEmotion, language: language, mode: mode }),
+    });
+    const data = await resp.json();
+    renderSongs(data.tracks || [], window.currentEmotion, language, data.query, mode);
+  } catch(e) {
+    console.error('Mode re-scan failed:', e);
+  }
+
+  buttons.forEach(btn => btn.disabled = false);
+  if (mode === 'language_only') {
+    clickedBtn.textContent = '🌍 Language Only';
+  } else if (mode === 'popular') {
+    clickedBtn.textContent = '⭐ Popular Songs';
+  }
+}
+
+async function searchSongsByName() {
+  const query = document.getElementById('songSearchInput').value.trim();
+  if (!query) {
+    alert('Please enter a song name to search');
+    return;
+  }
+
+  const searchBtn = document.querySelector('#songsPanel .btn-green');
+  const originalText = searchBtn.textContent;
+  searchBtn.disabled = true;
+  searchBtn.textContent = '⏳ Searching...';
+
+  try {
+    const resp = await fetch('/search_songs_by_name/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: query }),
+    });
+    const data = await resp.json();
+
+    // Update title and hide language selector
+    document.getElementById('songsPanelTitle').textContent = `🔍 Search Results for "${query}"`;
+    document.getElementById('languageSelector').style.display = 'none';
+
+    renderSongs(data.tracks || [], 'search', 'General', data.query, 'search');
+    if (data.tracks && data.tracks.length > 0) {
+      playSong(data.tracks[0].url, data.tracks[0].title);
+    }
+  } catch(e) {
+    console.error('Search failed:', e);
+    alert('Search failed. Please try again.');
+  }
+
+  searchBtn.disabled = false;
+  searchBtn.textContent = originalText;
+}
+
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function setStatus(msg) {
+  document.getElementById('statusBar').textContent = msg;
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  startCamera();
+});
+</script>
+
+
+
+<!-- FOOTER -->
+<footer class="footer" id="contact">
+  <div class="container">
+
+    <div class="footer-grid">
+
+     <div class="footer-left">
+  <div class="logo">🎧 VisioSound</div>
+  <p class="tagline">
+    AI-powered music platform that detects your emotions
+    and delivers perfectly matched songs in real time.
+  </p>
+</div>
+
+      <div class="footer-links">
+
+        <div>
+          <h4>Platform</h4>
+          <ul>
+            <li>Emotion Detection</li>
+            <li>Music Recommendation</li>
+            <li>Real-time Analysis</li>
+          </ul>
+        </div>
+
+        <div>
+          <h4>Support</h4>
+          <ul>
+            <li>Help Center</li>
+            <li>Contact Us</li>
+            <li>FAQs</li>
+          </ul>
+        </div>
+
+        <div>
+          <h4>Contact</h4>
+          <ul>
+            <li>Email: support@visiosound.com</li>
+            <li>Phone: +91 9876543210</li>
+            <li>Location: India</li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      © 2026 VisioSound. Built with AI for music lovers.
+    </div>
+
+  </div>
+</footer>
+
+</body>
+</html>
