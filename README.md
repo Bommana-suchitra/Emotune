@@ -1,4 +1,4 @@
-# 🎵 VisoSound — Face Expression → Music Generator
+# 🎵 Emotune — Face Expression → Music Generator
 
 A Django web app that:
 1. Opens your webcam live in the browser
